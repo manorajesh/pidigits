@@ -8,9 +8,18 @@
  * Learn more at https://developers.cloudflare.com/workers/
  */
 
+import { HmacSHA1, enc } from 'crypto-js';
+import OAuth from 'oauth-1.0a';
+
 export interface Env {
 	// Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
 	pi_digit_counter: KVNamespace;
+
+	APP_KEY: string;
+	APP_SECRET: string;
+	ACCESS_TOKEN: string;
+	ACCESS_SECRET: string;
+
 	//
 	// Example binding to Durable Object. Learn more at https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
 	// MY_DURABLE_OBJECT: DurableObjectNamespace;
@@ -24,8 +33,6 @@ export interface Env {
 	// Example binding to a Queue. Learn more at https://developers.cloudflare.com/queues/javascript-apis/
 	// MY_QUEUE: Queue;
 }
-
-import { TwitterApi } from 'twitter-api-v2';
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -41,24 +48,55 @@ export default {
 		let n = parseInt(value, 10);
 		let pi = await fetchPi(n);
 
-		// post with OAuth1.0a (User Context)
-		const userClient = new TwitterApi({
-			appKey: '--',
-			appSecret: '--',
-			accessToken: '--',
-			accessSecret: '--',
-		});
-		
-		let clientV2 = userClient.v2;
+		let tweetStatus = await tweet(env.APP_KEY, env.APP_SECRET, env.ACCESS_TOKEN, env.ACCESS_SECRET);
 
-		if (pi !== "Error") {
+		if (pi !== "Error" && tweetStatus.ok) {
+			// update n
 			n++;
 			await env.pi_digit_counter.put('n', n.toString());
 		}
 
-		return new Response(`${pi}`);
+		return new Response(`pi[${n}] = ${pi}; tweetStatus = ${tweetStatus}`);
 	},
 };
+
+function hashSha1(baseString: any, key: any) {
+	return HmacSHA1(baseString, key).toString(enc.Base64)
+}
+
+async function tweet(APP_KEY: string, APP_SECRET: string, ACCESS_TOKEN: string, ACCESS_SECRET: string): Promise<Response> {
+	const oauth = new OAuth({
+		consumer: { key: APP_KEY, secret: APP_SECRET },
+		signature_method: 'HMAC-SHA1',
+		hash_function: hashSha1,
+	});
+
+	// Will be added to request headers
+	const reqAuth = {
+		url: "https://api.twitter.com/2/tweets",
+		method: 'POST',
+	};
+
+	const token = {
+		key: ACCESS_TOKEN,
+		secret: ACCESS_SECRET,
+	};
+
+	var reqBody = JSON.stringify({
+		"text": "Hello World!"
+	});
+
+	const response = await fetch(reqAuth.url, {
+		method: reqAuth.method,
+		headers: {
+			...oauth.toHeader(oauth.authorize(reqAuth, token)),
+			'Content-Type': 'application/json',
+		},
+		body: reqBody
+	});
+
+	return new Response(await response.json());
+}
 
 async function fetchPi(n: number): Promise<string> {
 	try {
