@@ -46,8 +46,9 @@ export default {
 
 		let diff = nextTweet.getTime() - Date.now();
 		let diffMinutes = Math.floor(diff / 60000);
+		let diffHours = Math.floor(diffMinutes / 60);
 
-		return new Response(`Next tweet in ${diffMinutes} minutes`);
+		return new Response(`Next tweet in ${diffHours} hours and ${diffMinutes % 60} minutes`);
 	},
 
 	async scheduled(event: Event, env: Env, ctx: ExecutionContext): Promise<void> {
