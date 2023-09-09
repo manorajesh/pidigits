@@ -36,35 +36,53 @@ export interface Env {
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		let value = await env.pi_digit_counter.get('n');
+		// return time till next tweet
 
-		// init n
-		if (value === null) {
-			await env.pi_digit_counter.put('n', '0');
-			value = '0';
-		}
+		let nextTweet = new Date();
+		nextTweet.setHours(3, 14, 0, 0);
+		let diff = nextTweet.getTime() - Date.now();
+		let diffMinutes = Math.floor(diff / 60000);
 
-		// get pi
-		let n = parseInt(value, 10);
-		let pi = await fetchPi(n);
-
-		let tweetStatus = await tweet(env.APP_KEY, env.APP_SECRET, env.ACCESS_TOKEN, env.ACCESS_SECRET);
-
-		if (pi !== "Error" && tweetStatus.ok) {
-			// update n
-			n++;
-			await env.pi_digit_counter.put('n', n.toString());
-		}
-
-		return new Response(`pi[${n}] = ${pi}; tweetStatus = ${tweetStatus}`);
+		return new Response(`Next tweet in ${diffMinutes} minutes`);
 	},
+
+	async scheduled(event: Event, env: Env, ctx: ExecutionContext): Promise<void> {
+		ctx.waitUntil(sendTweet(env));
+	}
 };
+
+async function sendTweet(env: Env) {
+	let value = await env.pi_digit_counter.get('n');
+
+	// init n
+	if (value === null) {
+		await env.pi_digit_counter.put('n', '0');
+		value = '0';
+	}
+
+	// get pi
+	let n = parseInt(value, 10);
+	let pi = await fetchPi(n);
+
+	let tweetStatus = await tweet(env.APP_KEY, env.APP_SECRET, env.ACCESS_TOKEN, env.ACCESS_SECRET, `π[${n}] = ${pi}`);
+	console.log(tweetStatus);
+
+	if (pi !== "Error" && tweetStatus.ok) {
+		// update n
+		n++;
+		await env.pi_digit_counter.put('n', n.toString());
+		console.log(`Updated n to ${n}`);
+	} else {
+		console.log("Error tweeting");
+		throw new Error("Error tweeting");
+	}
+}
 
 function hashSha1(baseString: any, key: any) {
 	return HmacSHA1(baseString, key).toString(enc.Base64)
 }
 
-async function tweet(APP_KEY: string, APP_SECRET: string, ACCESS_TOKEN: string, ACCESS_SECRET: string): Promise<Response> {
+async function tweet(APP_KEY: string, APP_SECRET: string, ACCESS_TOKEN: string, ACCESS_SECRET: string, text: string): Promise<Response> {
 	const oauth = new OAuth({
 		consumer: { key: APP_KEY, secret: APP_SECRET },
 		signature_method: 'HMAC-SHA1',
@@ -83,7 +101,7 @@ async function tweet(APP_KEY: string, APP_SECRET: string, ACCESS_TOKEN: string, 
 	};
 
 	var reqBody = JSON.stringify({
-		"text": "Hello World!"
+		"text": text,
 	});
 
 	const response = await fetch(reqAuth.url, {

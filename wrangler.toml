@@ -2,6 +2,9 @@ name = "pidigits"
 main = "src/index.ts"
 compatibility_date = "2023-09-04"
 
+[triggers]
+crons = ["14 3 * * *"]
+
 # Variable bindings. These are arbitrary, plaintext strings (similar to environment variables)
 # Note: Use secrets to store sensitive data.
 # Docs: https://developers.cloudflare.com/workers/platform/environment-variables
