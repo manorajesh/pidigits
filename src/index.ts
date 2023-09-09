@@ -40,6 +40,10 @@ export default {
 
 		let nextTweet = new Date();
 		nextTweet.setHours(3, 14, 0, 0);
+		if (nextTweet.getTime() < Date.now()) {
+			nextTweet.setDate(nextTweet.getDate() + 1);
+		}
+
 		let diff = nextTweet.getTime() - Date.now();
 		let diffMinutes = Math.floor(diff / 60000);
 
